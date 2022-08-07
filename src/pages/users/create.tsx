@@ -1,4 +1,4 @@
-import { Box, Button, Divider, Flex, Heading, HStack, SimpleGrid, VStack } from "@chakra-ui/react";
+import { Alert, AlertDescription, AlertIcon, AlertTitle, Box, Button, Divider, Flex, Heading, HStack, SimpleGrid, VStack } from "@chakra-ui/react";
 import Link from "next/link";
 import * as yup from 'yup';
 import {yupResolver} from '@hookform/resolvers/yup';
@@ -7,6 +7,9 @@ import { SubmitHandler, useForm } from "react-hook-form"
 import { Input } from "../../components/Form/Input";
 import { Header } from "../../components/Header";
 import { Sidebar } from "../../components/Sidebar";
+import { useMutation } from "@tanstack/react-query";
+import { api } from "../../services/api";
+import { queryClient } from "../../services/queryClient";
 
 type SignInFormData = {
   name: string;
@@ -24,13 +27,27 @@ const createUserFormSchema = yup.object().shape({
 });
 
 export default function CreateUser(){
+  const createUser = useMutation(async (user: SignInFormData) => {
+    const response = await api.post('users', {
+      user: {
+        ...user,
+        created_at: new Date()
+      }      
+    })
+
+    return response.data;
+  }, {
+    onSuccess: () => { 
+      queryClient.invalidateQueries(['users'])
+    }
+  })
 
   const { register, handleSubmit, formState: {errors, isSubmitting} } = useForm({
     resolver: yupResolver(createUserFormSchema)
   })
 
-  const handleCreateUser: SubmitHandler<SignInFormData> = (values) => {
-
+  const handleCreateUser: SubmitHandler<SignInFormData> = async (values) => {
+    await createUser.mutateAsync(values);
   }
 
   return (
@@ -39,7 +56,7 @@ export default function CreateUser(){
 
       <Flex w="100%" my="6" mx="auto" px="6">
         <Sidebar />
-
+        
         <Box
           flex="1"
           borderRadius={8}
@@ -48,6 +65,12 @@ export default function CreateUser(){
           as="form"
           onSubmit={handleSubmit(handleCreateUser)}
         >
+          {createUser.isSuccess && (
+            <Alert status='success'>
+              <AlertIcon />
+              <AlertTitle>Usuário cadastrado com sucesso!</AlertTitle>
+            </Alert>
+          )}
           <Heading size={"lg"} fontWeight="normal" >Criar usuário</Heading>
 
           <Divider my={"6"} borderColor={"gray.700"}/>
@@ -92,7 +115,13 @@ export default function CreateUser(){
                 <Link href="/users">
                   <Button colorScheme={"whiteAlpha"}>Cancelar</Button>
                 </Link>
-                <Button colorScheme={"pink"} type="submit">Salvar</Button>
+                <Button
+                  colorScheme={"pink"}
+                  type="submit"
+                  isLoading={isSubmitting}
+                >
+                    Salvar
+                  </Button>
               </HStack>
             </Flex>
         </Box>
